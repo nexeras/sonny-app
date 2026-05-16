@@ -336,6 +336,99 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 }
 .preview-iframe { width: 100%; border: none; min-height: 200px; display: block; }
 
+/* ── MARKDOWN RENDERED CONTENT ── */
+/* The md-bubble wrapper removes default bubble padding
+   so inner block elements can control their own spacing */
+.md-bubble {
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+
+.md-p {
+  font-size: 15px; line-height: 1.6; color: var(--espresso);
+  margin: 0;
+}
+
+.md-h { font-family: 'Lora', serif; font-weight: 700; color: var(--espresso); margin: 4px 0 2px; }
+.md-h1 { font-size: 19px; }
+.md-h2 { font-size: 17px; }
+.md-h3 { font-size: 15px; }
+
+.md-ul, .md-ol {
+  padding-left: 22px; margin: 0;
+  /* No flex here — flex containers suppress ::marker pseudo-elements */
+  display: block;
+}
+.md-ul { list-style-type: disc; }
+.md-ol { list-style-type: decimal; }
+.md-li {
+  font-size: 15px; line-height: 1.55; color: var(--espresso);
+  padding-left: 2px; margin-bottom: 4px;
+  display: list-item; /* Explicitly required after global reset */
+}
+.md-ul .md-li { list-style-type: disc; }
+.md-ol .md-li { list-style-type: decimal; }
+.md-ul .md-li::marker { color: var(--amber); font-size: 13px; }
+.md-ol .md-li::marker { color: var(--amber); font-weight: 700; }
+
+/* ── TABLES ── */
+.md-table-wrap {
+  overflow-x: auto; margin: 2px 0;
+  border-radius: 10px; border: 1px solid var(--wheat);
+}
+.md-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px; min-width: 240px;
+}
+.md-table th {
+  background: var(--sand); padding: 8px 12px;
+  text-align: left; font-weight: 700; color: var(--espresso);
+  border-bottom: 2px solid var(--wheat); white-space: nowrap;
+}
+.md-table td {
+  padding: 8px 12px; color: var(--espresso);
+  border-bottom: 1px solid var(--sand);
+  vertical-align: top;
+}
+.md-table tr:last-child td { border-bottom: none; }
+.md-table tbody tr:nth-child(even) td { background: #faf6f0; }
+
+.md-blockquote {
+  border-left: 3px solid var(--amber);
+  padding: 6px 12px;
+  background: rgba(193,127,74,0.07);
+  border-radius: 0 8px 8px 0;
+  font-size: 14px; color: var(--espresso-mid);
+  font-style: italic; line-height: 1.55;
+  margin: 0;
+}
+
+.md-hr {
+  border: none; border-top: 1px solid var(--wheat);
+  margin: 4px 0;
+}
+
+.md-inline-code {
+  background: rgba(58,50,40,0.08);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  color: var(--amber-dark);
+}
+
+.md-link {
+  color: var(--amber-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-link:hover { color: var(--amber); }
+
+/* Bold and italic inside bubbles */
+.bubble strong, .md-bubble strong { font-weight: 700; }
+.bubble em,     .md-bubble em     { font-style: italic; }
+.bubble del,    .md-bubble del    { text-decoration: line-through; opacity: 0.7; }
+
 /* Typing indicator */
 .typing-bubble {
   background: var(--white); border-radius: 20px 20px 20px 5px;
@@ -502,6 +595,12 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 .danger-btn { background: none; border: none; font-size: 15px; font-weight: 500; color: var(--danger); cursor: pointer; text-align: left; padding: 14px 18px; width: 100%; border-bottom: 1px solid var(--sand); transition: background 0.15s; }
 .danger-btn:last-child { border-bottom: none; }
 .danger-btn:active { background: #fdf0ee; }
+.safe-btn { background: none; border: none; font-size: 15px; font-weight: 500; color: var(--espresso); cursor: pointer; text-align: left; padding: 14px 18px; width: 100%; border-bottom: 1px solid var(--sand); transition: background 0.15s; display: block; }
+.safe-btn:last-child, .safe-btn-row:last-child .safe-btn { border-bottom: none; }
+.safe-btn:active { background: var(--sand); }
+.safe-btn-row { border-bottom: 1px solid var(--sand); }
+.safe-btn-row:last-child { border-bottom: none; }
+.safe-btn-import { border-bottom: none; }
 
 /* ══════════════════════════════════════════
    VOICE OVERLAY
@@ -791,6 +890,15 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
             <textarea id="system-prompt-input" rows="4" oninput="savePrefs()"
               placeholder="e.g. You are Sonny, a warm and helpful personal AI assistant…"
               style="border:1.5px solid var(--wheat);border-radius:12px;padding:10px 14px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--espresso);background:var(--sand);outline:none;resize:none;line-height:1.5"></textarea>
+          </div>
+        </div>
+
+        <div class="settings-sec-label">Backup &amp; Transfer</div>
+        <div class="settings-group">
+          <button class="safe-btn" onclick="exportBackup()">📦 Export all data (backup)</button>
+          <div class="safe-btn-row">
+            <button class="safe-btn safe-btn-import" onclick="document.getElementById('import-file-input').click()">📥 Import backup file</button>
+            <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="importBackup(event)">
           </div>
         </div>
 
@@ -1180,67 +1288,248 @@ function appendMsgDOM(role, content, time, showTs, imageThumb) {
   return group;
 }
 
+/* ─────────────────────────────────────────
+   MARKDOWN RENDERER
+   Parses AI response text into rich DOM nodes.
+   Handles: fenced code blocks, headings, bold,
+   italic, inline code, bullet lists, numbered
+   lists, blockquotes, horizontal rules, links.
+───────────────────────────────────────── */
 function parseContent(text) {
   const nodes = [];
+
+  // 1. Split out fenced code blocks first so we don't
+  //    markdown-process their contents.
   const codeRe = /```(\w*)\n?([\s\S]*?)```/g;
+  const segments = []; // [{type:'text'|'code', content, lang}]
   let last = 0, match;
 
   while ((match = codeRe.exec(text)) !== null) {
-    // Text before code block
     if (match.index > last) {
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble ai';
-      bubble.textContent = text.slice(last, match.index).trim();
-      if (bubble.textContent) nodes.push(bubble);
+      segments.push({ type: 'text', content: text.slice(last, match.index) });
     }
-
-    const lang    = match[1] || 'code';
-    const code    = match[2];
-    const isHTML  = ['html','svg'].includes(lang.toLowerCase());
-
-    const block = document.createElement('div');
-    block.className = 'code-block';
-
-    const header = document.createElement('div');
-    header.className = 'code-block-header';
-    header.innerHTML = `<span>${escHtml(lang)}</span>`;
-
-    if (isHTML) {
-      const prevBtn = document.createElement('button');
-      prevBtn.className = 'preview-btn';
-      prevBtn.textContent = '▶ Preview';
-      const codeSnap = code;
-      prevBtn.onclick = () => showPreview(block, codeSnap);
-      header.appendChild(prevBtn);
-    }
-
-    const pre  = document.createElement('pre');
-    const codE = document.createElement('code');
-    codE.textContent = code;
-    pre.appendChild(codE);
-    block.appendChild(header);
-    block.appendChild(pre);
-    nodes.push(block);
-
+    segments.push({ type: 'code', lang: match[1] || '', content: match[2] });
     last = match.index + match[0].length;
   }
+  if (last < text.length) segments.push({ type: 'text', content: text.slice(last) });
+  if (!segments.length)   segments.push({ type: 'text', content: text });
 
-  // Remaining text
-  if (last < text.length) {
+  // 2. Process each segment
+  segments.forEach(seg => {
+    if (seg.type === 'code') {
+      nodes.push(buildCodeBlock(seg.lang, seg.content));
+      return;
+    }
+
+    // Split text into lines for block-level parsing
+    const lines  = seg.content.split('\n');
     const bubble = document.createElement('div');
-    bubble.className = 'bubble ai';
-    bubble.textContent = text.slice(last).trim();
-    if (bubble.textContent) nodes.push(bubble);
-  }
+    bubble.className = 'bubble ai md-bubble';
 
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // ── Blank line → spacer (handled by margin on elements)
+      if (line.trim() === '') { i++; continue; }
+
+      // ── Horizontal rule
+      if (/^[-*_]{3,}$/.test(line.trim())) {
+        bubble.appendChild(el('hr', 'md-hr'));
+        i++; continue;
+      }
+
+      // ── Heading
+      const hMatch = line.match(/^(#{1,3})\s+(.+)/);
+      if (hMatch) {
+        const level = hMatch[1].length;
+        const h = el('div', `md-h md-h${level}`);
+        h.innerHTML = inlineMarkdown(hMatch[2]);
+        bubble.appendChild(h);
+        i++; continue;
+      }
+
+      // ── Blockquote
+      if (line.startsWith('> ')) {
+        const bq   = el('blockquote', 'md-blockquote');
+        const body = [];
+        while (i < lines.length && lines[i].startsWith('> ')) {
+          body.push(lines[i].slice(2));
+          i++;
+        }
+        bq.innerHTML = inlineMarkdown(body.join('\n'));
+        bubble.appendChild(bq);
+        continue;
+      }
+
+      // ── Table (pipe-delimited, with separator row)
+      if (line.trim().startsWith('|') && lines[i+1] && /^\|[-| :]+\|$/.test(lines[i+1].trim())) {
+        const tableLines = [];
+        while (i < lines.length && lines[i].trim().startsWith('|')) {
+          tableLines.push(lines[i]);
+          i++;
+        }
+        const parseRow = l => l.replace(/^\||\|$/g,'').split('|').map(c => c.trim());
+        const headers  = parseRow(tableLines[0]);
+        const dataRows = tableLines.slice(2).map(parseRow);
+
+        const wrap  = el('div', 'md-table-wrap');
+        const table = el('table', 'md-table');
+
+        const thead = document.createElement('thead');
+        const hRow  = document.createElement('tr');
+        headers.forEach(h => {
+          const th = document.createElement('th');
+          th.innerHTML = inlineMarkdown(h);
+          hRow.appendChild(th);
+        });
+        thead.appendChild(hRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        dataRows.forEach(row => {
+          const tr = document.createElement('tr');
+          // Pad short rows to header length
+          const cells = [...row];
+          while (cells.length < headers.length) cells.push('');
+          cells.forEach(cell => {
+            const td = document.createElement('td');
+            td.innerHTML = inlineMarkdown(cell);
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        bubble.appendChild(wrap);
+        continue;
+      }
+
+      // ── Unordered list
+      if (/^[-*+]\s/.test(line)) {
+        const ul = el('ul', 'md-ul');
+        while (i < lines.length && /^[-*+]\s/.test(lines[i])) {
+          const li = el('li', 'md-li');
+          li.innerHTML = inlineMarkdown(lines[i].replace(/^[-*+]\s/, ''));
+          ul.appendChild(li);
+          i++;
+        }
+        bubble.appendChild(ul);
+        continue;
+      }
+
+      // ── Ordered list
+      if (/^\d+\.\s/.test(line)) {
+        const ol = el('ol', 'md-ol');
+        while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
+          const li = el('li', 'md-li');
+          li.innerHTML = inlineMarkdown(lines[i].replace(/^\d+\.\s/, ''));
+          ol.appendChild(li);
+          i++;
+        }
+        bubble.appendChild(ol);
+        continue;
+      }
+
+      // ── Paragraph: collect consecutive non-special lines
+      const pLines = [];
+      while (
+        i < lines.length &&
+        lines[i].trim() !== '' &&
+        !/^(#{1,3}\s|[-*+]\s|\d+\.\s|> |[-*_]{3,})/.test(lines[i]) &&
+        !lines[i].trim().startsWith('|')
+      ) {
+        pLines.push(lines[i]);
+        i++;
+      }
+      if (pLines.length) {
+        const p = el('p', 'md-p');
+        p.innerHTML = inlineMarkdown(pLines.join('\n'));
+        bubble.appendChild(p);
+      }
+    }
+
+    // Only push if there's actual content
+    if (bubble.children.length) nodes.push(bubble);
+  });
+
+  // Fallback
   if (!nodes.length) {
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble ai';
-    bubble.textContent = text;
-    nodes.push(bubble);
+    const b = document.createElement('div');
+    b.className = 'bubble ai';
+    b.textContent = text;
+    nodes.push(b);
   }
 
   return nodes;
+}
+
+/* Inline markdown: bold, italic, inline code, links, line breaks */
+function inlineMarkdown(text) {
+  return escHtml(text)
+    // Inline code (do first to protect contents)
+    .replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>')
+    // Bold + italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g,     '<strong>$1</strong>')
+    // Italic
+    .replace(/\*(.+?)\*/g,     '<em>$1</em>')
+    .replace(/_([^_]+)_/g,     '<em>$1</em>')
+    // Strikethrough
+    .replace(/~~(.+?)~~/g,     '<del>$1</del>')
+    // Links  [text](url)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener" class="md-link">$1</a>')
+    // Line breaks (two spaces + newline, or bare newline inside paragraph)
+    .replace(/  \n/g, '<br>')
+    .replace(/\n/g,   '<br>');
+}
+
+function el(tag, cls) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  return e;
+}
+
+function buildCodeBlock(lang, code) {
+  const isHTML = ['html','svg'].includes(lang.toLowerCase());
+  const block  = document.createElement('div');
+  block.className = 'code-block';
+
+  const header = document.createElement('div');
+  header.className = 'code-block-header';
+  header.innerHTML = `<span>${escHtml(lang || 'code')}</span>`;
+
+  if (isHTML) {
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'preview-btn';
+    prevBtn.textContent = '▶ Preview';
+    const snap = code;
+    prevBtn.onclick = () => showPreview(block, snap);
+    header.appendChild(prevBtn);
+  }
+
+  // Copy button
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'preview-btn';
+  copyBtn.textContent = 'Copy';
+  copyBtn.onclick = () => {
+    navigator.clipboard?.writeText(code).then(() => {
+      copyBtn.textContent = '✓ Copied';
+      setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+    });
+  };
+  header.appendChild(copyBtn);
+
+  const pre  = document.createElement('pre');
+  const codE = document.createElement('code');
+  codE.textContent = code;
+  pre.appendChild(codE);
+  block.appendChild(header);
+  block.appendChild(pre);
+  return block;
 }
 
 function showPreview(codeBlock, html) {
@@ -1736,6 +2025,90 @@ function setToggle(id, val) {
 
 function clearAllChats()  { storeChats([]); activeChatId = null; showView('welcome'); renderChatList(); showToast('All chats cleared'); }
 function clearApiKey()    { storeKey(''); document.getElementById('api-key-input').placeholder = 'Paste your API key'; showToast('Key removed'); }
+
+/* ═══════════════════════════════════════════
+   EXPORT / IMPORT BACKUP
+═══════════════════════════════════════════ */
+function exportBackup() {
+  const backup = {
+    version:  2,
+    exported: new Date().toISOString(),
+    chats:    loadChats(),
+    projects: loadProjects(),
+    prefs:    loadPrefs(),
+    // Note: API key is intentionally excluded for security.
+    // Re-enter it manually after importing on a new device.
+  };
+
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+
+  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `sonny-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  showToast('✅ Backup downloaded');
+}
+
+function importBackup(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+
+      // Basic validation
+      if (!data.version || !Array.isArray(data.chats)) {
+        showToast('⚠️ Invalid backup file'); return;
+      }
+
+      const chatCount    = data.chats?.length    || 0;
+      const projectCount = data.projects?.length || 0;
+
+      confirmAction(
+        'Import backup?',
+        `This will merge ${chatCount} chat${chatCount !== 1 ? 's' : ''} and ${projectCount} project${projectCount !== 1 ? 's' : ''} into Sonny. Existing data is kept — nothing is deleted.`,
+        () => {
+          // Merge chats: add any that don't already exist by ID
+          const existingChats = loadChats();
+          const existingIds   = new Set(existingChats.map(c => c.id));
+          const newChats      = (data.chats || []).filter(c => !existingIds.has(c.id));
+          storeChats([...existingChats, ...newChats]);
+
+          // Merge projects
+          const existingProjects = loadProjects();
+          const existingProjIds  = new Set(existingProjects.map(p => p.id));
+          const newProjects       = (data.projects || []).filter(p => !existingProjIds.has(p.id));
+          storeProjects([...existingProjects, ...newProjects]);
+
+          // Restore prefs only if none currently saved
+          if (data.prefs && !localStorage.getItem(SK.PREFS)) {
+            storePrefs(data.prefs);
+          }
+
+          closeModal();
+          renderChatList();
+          showToast(`✅ Imported ${newChats.length} chat${newChats.length !== 1 ? 's' : ''} and ${newProjects.length} project${newProjects.length !== 1 ? 's' : ''}`);
+          // Note: API key must be re-entered manually in Settings
+          if (!loadKey()) showToast('⚠️ Remember to re-enter your API key in Settings');
+        },
+        'Import'
+      );
+
+    } catch {
+      showToast('⚠️ Could not read backup file');
+    }
+  };
+
+  reader.readAsText(file);
+  e.target.value = ''; // reset so same file can be re-imported if needed
+}
 
 /* ═══════════════════════════════════════════
    MODAL & TOAST
