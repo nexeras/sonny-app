@@ -365,20 +365,21 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 #img-remove-btn:hover { color: var(--danger); }
 
 /* ── INPUT BAR ── */
-#input-bar {
-  display: flex; align-items: flex-end; gap: 8px;
-  padding: 10px 14px calc(10px + var(--safe-bot));
-  background: var(--cream); border-top: 1px solid rgba(224,204,176,0.7);
-  flex-shrink: 0; max-width: 860px; width: 100%; margin: 0 auto;
-  /* override max-width containment for full-bleed bg */
-}
-/* Full-bleed wrapper trick */
+/* Outer wrapper handles full-bleed background and safe-area bottom padding.
+   On iPhone it respects the home indicator; on iPad safe-bot is 0 so we
+   enforce a minimum 12px gap so the bar is never flush against the edge. */
 #input-bar-outer {
   background: var(--cream);
   border-top: 1px solid rgba(224,204,176,0.7);
   flex-shrink: 0;
+  padding-bottom: max(var(--safe-bot), 12px);
 }
-#input-bar { border-top: none; }
+#input-bar {
+  display: flex; align-items: flex-end; gap: 8px;
+  padding: 10px 14px 0;
+  background: transparent;
+  flex-shrink: 0; max-width: 860px; width: 100%; margin: 0 auto;
+}
 
 .input-wrap {
   flex: 1; background: var(--white); border: 1.5px solid var(--wheat);
@@ -1404,7 +1405,7 @@ function buildSystemPrompt(prefs, project) {
 }
 
 async function callAnthropic(messages, apiKey, prefs, project) {
-  const model  = prefs.model || 'claude-sonnet-4-20250514';
+  const model  = prefs.model || 'claude-sonnet-4-6';
   const system = buildSystemPrompt(prefs, project);
 
   const apiMsgs = messages.map(m => {
@@ -1659,7 +1660,12 @@ function onProviderChange(doSave = true) {
   const provider = document.getElementById('provider-select').value;
   const sel = document.getElementById('model-select');
   const models = {
-    anthropic: [['claude-sonnet-4-20250514','Claude Sonnet 4'],['claude-opus-4-20250514','Claude Opus 4'],['claude-haiku-4-5-20251001','Claude Haiku 4.5']],
+    anthropic: [
+      ['claude-sonnet-4-6',        'Claude Sonnet 4.6 (recommended)'],
+      ['claude-opus-4-7',          'Claude Opus 4.7 (most capable)'],
+      ['claude-opus-4-6',          'Claude Opus 4.6'],
+      ['claude-haiku-4-5-20251001','Claude Haiku 4.5 (fastest)'],
+    ],
     openai:    [['gpt-4o','GPT-4o'],['gpt-4o-mini','GPT-4o Mini'],['gpt-4-turbo','GPT-4 Turbo']],
     groq:      [['llama-3.3-70b-versatile','Llama 3.3 70B'],['llama-3.1-8b-instant','Llama 3.1 8B'],['mixtral-8x7b-32768','Mixtral 8x7B']],
     custom:    [['gpt-4o','Custom model']],
