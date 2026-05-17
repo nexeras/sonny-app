@@ -678,7 +678,58 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 
 /* Hidden file input */
 #file-input, #doc-file-input { display: none; }
-</style>
+
+/* ── WEB SEARCH INDICATOR ── */
+.search-indicator {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; background: #f0f7ff;
+  border-top: 1px solid #d0e8ff; font-size: 13px;
+  color: #3a6ea8; flex-shrink: 0;
+  animation: fadeUp 0.2s ease;
+}
+.search-indicator svg { flex-shrink: 0; animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── DOCUMENT DOWNLOAD BUTTONS ── */
+.doc-download-bar {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 10px 4px 4px;
+}
+.doc-download-btn {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--sand); border: 1.5px solid var(--wheat);
+  border-radius: 10px; padding: 8px 14px;
+  font-size: 13px; font-weight: 600; color: var(--espresso-mid);
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.doc-download-btn:hover  { background: var(--wheat); border-color: var(--amber); color: var(--espresso); }
+.doc-download-btn:active { transform: scale(0.96); }
+.doc-download-btn .doc-icon { font-size: 16px; }
+
+/* ── WEB SEARCH TOGGLE IN INPUT BAR ── */
+.input-icon-btn.search-on { color: #3a6ea8; background: #e8f2ff; }
+
+/* ── EMOJI ICON PICKER ── */
+.emoji-pick {
+  width: 36px; height: 36px; font-size: 20px;
+  border-radius: var(--radius-sm); background: var(--sand);
+  border: 1.5px solid transparent; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.13s, border-color 0.13s, transform 0.1s;
+}
+.emoji-pick:hover  { background: var(--wheat); border-color: var(--amber); }
+.emoji-pick:active { transform: scale(0.9); }
+.emoji-pick.selected { border-color: var(--amber); background: #fdf0e3; }
+
+/* ── SEARCH RESULTS CITATION STYLE ── */
+.search-source {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #e8f2ff; border-radius: 5px;
+  padding: 1px 7px; font-size: 11px; font-weight: 600;
+  color: #3a6ea8; text-decoration: none; vertical-align: middle;
+  margin: 0 1px;
+}
+.search-source:hover { background: #d0e4ff; }</style>
 </head>
 <body>
 <div id="app">
@@ -688,7 +739,7 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
   ══════════════════════════════════════ -->
   <div id="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-wordmark">☀️ Sonny</div>
+      <div class="sidebar-wordmark" id="app-wordmark">☀️ Sonny</div>
       <button class="top-icon-btn" onclick="closeSidebar()" style="display:none" id="sidebar-close-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -748,9 +799,9 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 
     <!-- ── WELCOME VIEW ── -->
     <div class="view active" id="view-welcome">
-      <div class="welcome-sun">☀️</div>
-      <div class="welcome-title">Good to see you.</div>
-      <div class="welcome-sub">Start a new chat, open a project, or head to Settings to add your API key.</div>
+      <div class="welcome-sun" id="app-welcome-icon">☀️</div>
+      <div class="welcome-title" id="app-welcome-title">Good to see you.</div>
+      <div class="welcome-sub" id="app-welcome-sub">Start a new chat, open a project, or head to Settings to add your API key.</div>
       <button class="welcome-start-btn" onclick="newChat(null)">Start a new chat</button>
     </div>
 
@@ -769,6 +820,12 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
         </button>
       </div>
 
+      <!-- Web search active indicator -->
+      <div id="search-indicator" style="display:none" class="search-indicator">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Sonny is searching the web…
+      </div>
+
       <div id="input-bar-outer">
         <div id="input-bar">
           <!-- Image attach -->
@@ -781,6 +838,11 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
             <textarea id="msg-input" placeholder="Message Sonny…" rows="1"
               oninput="autoResize(this)" onkeydown="handleKey(event)"></textarea>
           </div>
+
+          <!-- Web search toggle -->
+          <button class="input-icon-btn" id="search-btn" onclick="toggleWebSearch()" title="Toggle web search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
 
           <!-- Voice in input -->
           <button class="input-icon-btn" id="mic-btn" onclick="startVoiceInput()" title="Speak">
@@ -821,6 +883,41 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
     <!-- ── SETTINGS VIEW ── -->
     <div class="view" id="view-settings">
       <div class="settings-inner">
+
+        <div class="settings-sec-label">App</div>
+        <div class="settings-group">
+          <div class="s-row" style="flex-wrap:wrap;gap:10px;padding-bottom:14px">
+            <div class="s-row-left">
+              <div class="s-row-label">App name</div>
+              <div class="s-row-sub">Shown in the sidebar, title bar, and placeholders</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;width:100%">
+              <input id="app-name-input" type="text" maxlength="32"
+                placeholder="e.g. Sonny, Aria, Lumi…"
+                style="flex:1;background:var(--sand);border:1.5px solid var(--wheat);border-radius:var(--radius-sm);padding:9px 12px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--espresso);outline:none;transition:border-color 0.2s"
+                onfocus="this.style.borderColor='var(--amber)'"
+                onblur="this.style.borderColor='var(--wheat)'"
+                oninput="previewAppName(this.value)">
+              <button class="save-key-btn" onclick="saveAppName()">Save</button>
+            </div>
+          </div>
+          <div class="s-row" style="padding-bottom:14px">
+            <div class="s-row-left">
+              <div class="s-row-label">App icon</div>
+              <div class="s-row-sub">Pick an emoji to use as the app icon</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+              <button class="emoji-pick" onclick="setAppIcon('☀️')">☀️</button>
+              <button class="emoji-pick" onclick="setAppIcon('✨')">✨</button>
+              <button class="emoji-pick" onclick="setAppIcon('🌙')">🌙</button>
+              <button class="emoji-pick" onclick="setAppIcon('🤖')">🤖</button>
+              <button class="emoji-pick" onclick="setAppIcon('💬')">💬</button>
+              <button class="emoji-pick" onclick="setAppIcon('🧠')">🧠</button>
+              <button class="emoji-pick" onclick="setAppIcon('🌿')">🌿</button>
+              <button class="emoji-pick" onclick="setAppIcon('⚡')">⚡</button>
+            </div>
+          </div>
+        </div>
 
         <div class="settings-sec-label">AI Provider</div>
         <div class="settings-group">
@@ -874,6 +971,14 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
           </div>
         </div>
 
+        <div class="settings-sec-label">Features</div>
+        <div class="settings-group">
+          <div class="s-row">
+            <div class="s-row-left"><div class="s-row-label">Web search</div><div class="s-row-sub" id="search-setting-sub">Anthropic only — Claude searches when needed</div></div>
+            <button class="toggle-track off" id="toggle-websearch" onclick="togglePref('webSearch')"><div class="toggle-thumb"></div></button>
+          </div>
+        </div>
+
         <div class="settings-sec-label">Display</div>
         <div class="settings-group">
           <div class="s-row">
@@ -909,7 +1014,7 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
         </div>
 
         <div style="padding:20px 4px 0;font-size:12px;color:var(--latte);line-height:1.8;text-align:center">
-          Sonny v2.0 · Your key never leaves this device<br>
+          Sonny v3.0 · Your key never leaves this device<br>
           All data stored locally in your browser
         </div>
       </div>
@@ -942,12 +1047,16 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- Document generation libraries (loaded from CDN) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 'use strict';
 /* ═══════════════════════════════════════════
    STORAGE
 ═══════════════════════════════════════════ */
-const SK = { CHATS:'sonny_chats_v2', PREFS:'sonny_prefs_v2', KEY:'sonny_k_v2', PROJECTS:'sonny_projects_v1' };
+const SK = { CHATS:'sonny_chats_v2', PREFS:'sonny_prefs_v2', KEY:'sonny_k_v2', PROJECTS:'sonny_projects_v1', IDENTITY:'sonny_identity_v1' };
 
 const enc = k => { try{return btoa(unescape(encodeURIComponent(k)))}catch{return k} };
 const dec = k => { try{return decodeURIComponent(escape(atob(k)))}catch{return ''} };
@@ -964,6 +1073,49 @@ const storeChats   = c  => localStorage.setItem(SK.CHATS, JSON.stringify(c));
 const loadProjects = () => { try{return JSON.parse(localStorage.getItem(SK.PROJECTS))||[]}catch{return[]} };
 const storeProjects= p  => localStorage.setItem(SK.PROJECTS, JSON.stringify(p));
 
+const loadIdentity  = () => { try{return JSON.parse(localStorage.getItem(SK.IDENTITY))||{}}catch{return{}} };
+const storeIdentity = v => localStorage.setItem(SK.IDENTITY, JSON.stringify(v));
+
+/* Apply name + icon everywhere in the UI */
+function applyAppIdentity(name, icon) {
+  name = (name || 'Sonny').trim() || 'Sonny';
+  icon = icon || '☀️';
+
+  // Browser tab
+  document.title = name;
+
+  // Sidebar wordmark
+  const wordmark = document.getElementById('app-wordmark');
+  if (wordmark) wordmark.textContent = `${icon} ${name}`;
+
+  // Top bar (welcome state)
+  const topTitle = document.getElementById('top-bar-title');
+  if (topTitle && topTitle.textContent === document.title || topTitle?.textContent === 'Sonny') {
+    // Only update if showing the app name, not a chat title
+  }
+
+  // Welcome screen
+  const welcomeIcon  = document.getElementById('app-welcome-icon');
+  const welcomeTitle = document.getElementById('app-welcome-title');
+  const welcomeSub   = document.getElementById('app-welcome-sub');
+  if (welcomeIcon)  welcomeIcon.textContent  = icon;
+  if (welcomeTitle) welcomeTitle.textContent = `Good to see you.`;
+  if (welcomeSub)   welcomeSub.textContent   = `Start a new chat, open a project, or head to Settings to add your API key.`;
+
+  // Input placeholder
+  const input = document.getElementById('msg-input');
+  if (input) input.placeholder = `Message ${name}…`;
+
+  // Default system prompt placeholder
+  const sysPH = document.getElementById('system-prompt-input');
+  if (sysPH) sysPH.placeholder = `e.g. You are ${name}, a warm and helpful personal AI assistant…`;
+
+  // Highlight selected emoji
+  document.querySelectorAll('.emoji-pick').forEach(btn => {
+    btn.classList.toggle('selected', btn.textContent === icon);
+  });
+}
+
 /* ═══════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════ */
@@ -972,6 +1124,7 @@ let activeProjectId = null;
 let isStreaming     = false;
 let pendingImage    = null; // {base64, mediaType, name}
 let sidebarTab      = 'chats';
+let webSearchOn     = false; // toggled per-message in input bar
 
 /* ═══════════════════════════════════════════
    SIDEBAR
@@ -1646,7 +1799,10 @@ async function sendMessage() {
     const reply   = await callLLM(chat.messages, apiKey, prefs, project);
 
     removeTypingBubble();
-    appendMsgDOM('assistant', reply, Date.now(), prefs.timestamps);
+    const msgGroup = appendMsgDOM('assistant', reply, Date.now(), prefs.timestamps);
+
+    // Offer document download buttons if content warrants it
+    if (msgGroup) maybeAppendDocButtons(msgGroup, reply);
 
     const aiMsg = { role: 'assistant', content: reply, time: Date.now() };
     const fresh = loadChats();
@@ -1672,40 +1828,142 @@ async function sendMessage() {
 }
 
 /* ═══════════════════════════════════════════
+   WEB SEARCH TOGGLE
+═══════════════════════════════════════════ */
+function toggleWebSearch() {
+  const prefs    = loadPrefs();
+  const provider = prefs.provider || 'anthropic';
+
+  if (provider !== 'anthropic') {
+    showToast('⚠️ Web search requires Anthropic as your provider');
+    return;
+  }
+
+  webSearchOn = !webSearchOn;
+  const btn = document.getElementById('search-btn');
+  btn.classList.toggle('search-on', webSearchOn);
+  btn.title = webSearchOn ? 'Web search ON — click to disable' : 'Toggle web search';
+  showToast(webSearchOn ? '🔍 Web search enabled' : 'Web search off');
+}
+
+/* ═══════════════════════════════════════════
    LLM API
 ═══════════════════════════════════════════ */
 async function callLLM(messages, apiKey, prefs, project) {
   const provider = prefs.provider || 'anthropic';
+  if (provider !== 'anthropic' && webSearchOn) {
+    showToast('⚠️ Web search is Anthropic only — sending without search');
+  }
   return provider === 'anthropic'
     ? callAnthropic(messages, apiKey, prefs, project)
     : callOpenAICompat(messages, apiKey, prefs, project);
 }
 
+/* Build system prompt blocks with cache_control markers.
+   We split into up to 3 cacheable segments:
+     1. Base personality (always present, cache it)
+     2. Project context text (if any, cache it)
+     3. Project documents (if any, cache each doc individually)
+   Anthropic caches each block independently for 5 min (up to 1 hr
+   if repeatedly hit). Min cacheable size is 1024 tokens — we always
+   mark the blocks; the API silently skips caching if too small. */
+function buildSystemBlocks(prefs, project) {
+  const identity = loadIdentity();
+  const appName  = identity.name || 'Sonny';
+  const baseText = prefs.systemPrompt ||
+    `You are ${appName}, a warm and helpful personal AI assistant. Be concise, friendly, and genuinely useful.`;
+
+  if (!project) {
+    return [{ type: 'text', text: baseText, cache_control: { type: 'ephemeral' } }];
+  }
+
+  const blocks = [];
+  blocks.push({ type: 'text', text: baseText, cache_control: { type: 'ephemeral' } });
+
+  if (project.context) {
+    blocks.push({
+      type: 'text',
+      text: `## Project Context\n${project.context}`,
+      cache_control: { type: 'ephemeral' }
+    });
+  }
+
+  if (project.docs?.length) {
+    project.docs.forEach(doc => {
+      blocks.push({
+        type: 'text',
+        text: `## Document: ${doc.name}\n${doc.content}`,
+        cache_control: { type: 'ephemeral' }
+      });
+    });
+  }
+
+  return blocks;
+}
+
+/* Build the messages array with cache_control on the conversation history. */
+function buildApiMessages(messages) {
+  const apiMsgs = messages.map(m => {
+    const role = m.role === 'assistant' ? 'assistant' : 'user';
+    if (m.imageData && role === 'user') {
+      return { role, content: [
+        { type: 'image', source: { type: 'base64', media_type: m.imageData.mediaType, data: m.imageData.base64 } },
+        { type: 'text',  text: m.content }
+      ]};
+    }
+    return { role, content: m.content };
+  });
+
+  if (apiMsgs.length >= 2) {
+    const targetIdx = apiMsgs.length - 2;
+    const target    = apiMsgs[targetIdx];
+    if (typeof target.content === 'string') {
+      target.content = [{ type: 'text', text: target.content, cache_control: { type: 'ephemeral' } }];
+    } else if (Array.isArray(target.content)) {
+      const last = target.content[target.content.length - 1];
+      last.cache_control = { type: 'ephemeral' };
+    }
+  }
+
+  return apiMsgs;
+}
+
+/* buildSystemPrompt kept for OpenAI-compat providers (plain string) */
 function buildSystemPrompt(prefs, project) {
-  const base = prefs.systemPrompt || 'You are Sonny, a warm and helpful personal AI assistant. Be concise, friendly, and genuinely useful.';
+  const identity = loadIdentity();
+  const appName  = identity.name || 'Sonny';
+  const base = prefs.systemPrompt || `You are ${appName}, a warm and helpful personal AI assistant. Be concise, friendly, and genuinely useful.`;
   if (!project) return base;
   let sys = base + '\n\n';
   if (project.context) sys += `## Project Context\n${project.context}\n\n`;
   if (project.docs?.length) {
-    sys += `## Reference Documents\n`;
     project.docs.forEach(d => { sys += `### ${d.name}\n${d.content}\n\n`; });
   }
   return sys;
 }
 
 async function callAnthropic(messages, apiKey, prefs, project) {
-  const model  = prefs.model || 'claude-sonnet-4-6';
-  const system = buildSystemPrompt(prefs, project);
+  const model        = prefs.model || 'claude-sonnet-4-6';
+  const systemBlocks = buildSystemBlocks(prefs, project);
+  const apiMsgs      = buildApiMessages(messages);
+  const useSearch    = webSearchOn && (prefs.provider || 'anthropic') === 'anthropic';
 
-  const apiMsgs = messages.map(m => {
-    if (m.imageData && m.role === 'user') {
-      return { role: 'user', content: [
-        { type: 'image', source: { type: 'base64', media_type: m.imageData.mediaType, data: m.imageData.base64 } },
-        { type: 'text',  text: m.content }
-      ]};
-    }
-    return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
-  });
+  // Show search indicator if web search is active
+  if (useSearch) {
+    document.getElementById('search-indicator').style.display = 'flex';
+  }
+
+  const body = {
+    model,
+    max_tokens: 4096,
+    system: systemBlocks,
+    messages: apiMsgs,
+  };
+
+  // Add web search tool if enabled
+  if (useSearch) {
+    body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
+  }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -1713,17 +1971,40 @@ async function callAnthropic(messages, apiKey, prefs, project) {
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
-    body: JSON.stringify({ model, max_tokens: 2048, system, messages: apiMsgs })
+    body: JSON.stringify(body)
   });
+
+  document.getElementById('search-indicator').style.display = 'none';
 
   if (!res.ok) {
     const e = await res.json().catch(()=>({}));
     throw new Error(e?.error?.message || `API error ${res.status}`);
   }
+
   const data = await res.json();
-  return data.content?.[0]?.text || '';
+
+  // Log cache + usage stats
+  if (data.usage) {
+    const u = data.usage;
+    console.log(
+      `[Sonny] Tokens — input: ${u.input_tokens} | `+
+      `cache_write: ${u.cache_creation_input_tokens ?? 0} | `+
+      `cache_read: ${u.cache_read_input_tokens ?? 0} | `+
+      `output: ${u.output_tokens}`
+    );
+  }
+
+  // Extract text from potentially mixed content blocks
+  // (web search returns tool_use + tool_result + text blocks)
+  const textBlocks = (data.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('\n\n');
+
+  return textBlocks || '';
 }
 
 async function callOpenAICompat(messages, apiKey, prefs, project) {
@@ -1928,8 +2209,19 @@ if (window.speechSynthesis) {
    SETTINGS UI
 ═══════════════════════════════════════════ */
 function loadSettingsUI() {
-  const prefs  = loadPrefs();
-  const apiKey = loadKey();
+  const prefs    = loadPrefs();
+  const apiKey   = loadKey();
+  const identity = loadIdentity();
+
+  // App name field
+  const nameInput = document.getElementById('app-name-input');
+  if (nameInput) {
+    nameInput.value       = '';
+    nameInput.placeholder = identity.name || 'Sonny';
+  }
+
+  // Highlight current icon
+  applyAppIdentity(identity.name, identity.icon);
 
   if (prefs.provider) document.getElementById('provider-select').value = prefs.provider;
   onProviderChange(false);
@@ -1940,6 +2232,17 @@ function loadSettingsUI() {
 
   setToggle('toggle-timestamps', prefs.timestamps);
   setToggle('toggle-tts', prefs.tts);
+  setToggle('toggle-websearch', prefs.webSearch);
+
+  // Show note if non-Anthropic provider
+  const sub = document.getElementById('search-setting-sub');
+  if (sub) {
+    const isAnthropic = (prefs.provider || 'anthropic') === 'anthropic';
+    sub.textContent = isAnthropic
+      ? 'Claude searches the web when relevant'
+      : 'Web search requires Anthropic (Claude) as your provider';
+    sub.style.color = isAnthropic ? '' : 'var(--danger)';
+  }
 
   const ki = document.getElementById('api-key-input');
   ki.value = ''; ki.placeholder = apiKey ? '••••••••••••••••' : 'Paste your API key';
@@ -1974,6 +2277,7 @@ function savePrefs() {
     tts:          document.getElementById('toggle-tts').classList.contains('on'),
     voiceSpeed:   document.getElementById('voice-speed').value,
     systemPrompt: document.getElementById('system-prompt-input').value,
+    webSearch:    document.getElementById('toggle-websearch').classList.contains('on'),
   };
   storePrefs(prefs);
   updateModelPill();
@@ -1984,6 +2288,35 @@ function updateModelPill() {
   const labels = { anthropic:'Claude', openai:'OpenAI', groq:'Groq', custom:'Custom' };
   const pill   = document.getElementById('model-pill');
   if (pill) pill.textContent = labels[prefs.provider] || 'Claude';
+}
+
+/* ── APP NAME & ICON ── */
+function previewAppName(val) {
+  // Live preview as they type — update just the wordmark
+  const identity = loadIdentity();
+  const icon     = identity.icon || '☀️';
+  const wordmark = document.getElementById('app-wordmark');
+  if (wordmark) wordmark.textContent = `${icon} ${val || 'Sonny'}`;
+}
+
+function saveAppName() {
+  const val      = document.getElementById('app-name-input').value.trim();
+  const name     = val || 'Sonny';
+  const identity = loadIdentity();
+  identity.name  = name;
+  storeIdentity(identity);
+  applyAppIdentity(identity.name, identity.icon);
+  document.getElementById('app-name-input').value = '';
+  document.getElementById('app-name-input').placeholder = name;
+  showToast(`✅ App renamed to "${name}"`);
+}
+
+function setAppIcon(emoji) {
+  const identity = loadIdentity();
+  identity.icon  = emoji;
+  storeIdentity(identity);
+  applyAppIdentity(identity.name, identity.icon);
+  showToast('Icon updated');
 }
 
 function saveApiKey() {
@@ -2025,6 +2358,315 @@ function setToggle(id, val) {
 
 function clearAllChats()  { storeChats([]); activeChatId = null; showView('welcome'); renderChatList(); showToast('All chats cleared'); }
 function clearApiKey()    { storeKey(''); document.getElementById('api-key-input').placeholder = 'Paste your API key'; showToast('Key removed'); }
+
+/* ═══════════════════════════════════════════
+   DOCUMENT GENERATION
+   Detects intent in AI response text and appends
+   download buttons for Word, Excel, and PDF.
+═══════════════════════════════════════════ */
+
+/* Called after each AI response — checks if the response
+   contains content that warrants file download buttons */
+function maybeAppendDocButtons(msgGroup, responseText) {
+  const lower = responseText.toLowerCase();
+
+  const wantWord  = /\b(document|report|letter|memo|essay|proposal|summary|write-up|draft)\b/.test(lower);
+  const wantExcel = /\b(table|spreadsheet|data|rows|columns|csv|budget|forecast|schedule|tracker|list of)\b/.test(lower) && /\|/.test(responseText);
+  const wantPDF   = wantWord; // Offer PDF alongside Word for document-type content
+
+  if (!wantWord && !wantExcel) return;
+
+  const bar = document.createElement('div');
+  bar.className = 'doc-download-bar';
+
+  if (wantWord) {
+    const btn = document.createElement('button');
+    btn.className = 'doc-download-btn';
+    btn.innerHTML = '<span class="doc-icon">📄</span> Download as Word';
+    btn.onclick   = () => generateWord(responseText);
+    bar.appendChild(btn);
+  }
+
+  if (wantExcel) {
+    const btn = document.createElement('button');
+    btn.className = 'doc-download-btn';
+    btn.innerHTML = '<span class="doc-icon">📊</span> Download as Excel';
+    btn.onclick   = () => generateExcel(responseText);
+    bar.appendChild(btn);
+  }
+
+  if (wantPDF) {
+    const btn = document.createElement('button');
+    btn.className = 'doc-download-btn';
+    btn.innerHTML = '<span class="doc-icon">📑</span> Download as PDF';
+    btn.onclick   = () => generatePDF(responseText);
+    bar.appendChild(btn);
+  }
+
+  msgGroup.appendChild(bar);
+}
+
+/* ── WORD (.docx) ── */
+async function generateWord(text) {
+  try {
+    if (!window.docx) { showToast('⚠️ Word library not loaded yet, try again'); return; }
+    showToast('⏳ Generating Word document…');
+
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell,
+            BorderStyle, AlignmentType, WidthType } = window.docx;
+
+    const children = [];
+    const lines    = text.split('\n');
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // Heading
+      const hMatch = line.match(/^(#{1,3})\s+(.+)/);
+      if (hMatch) {
+        const lvl = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3][hMatch[1].length - 1];
+        children.push(new Paragraph({ text: hMatch[2], heading: lvl }));
+        i++; continue;
+      }
+
+      // Table
+      if (line.trim().startsWith('|') && lines[i+1] && /^\|[-| :]+\|$/.test(lines[i+1].trim())) {
+        const tableLines = [];
+        while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i]); i++; }
+        const parseRow = l => l.replace(/^\||\|$/g,'').split('|').map(c => c.trim());
+        const rows = [tableLines[0], ...tableLines.slice(2)].map(l => parseRow(l));
+
+        const docRows = rows.map((row, ri) =>
+          new TableRow({
+            children: row.map(cell =>
+              new TableCell({
+                children: [new Paragraph({
+                  children: [new TextRun({ text: cell.replace(/\*\*/g,''), bold: ri === 0 })],
+                })],
+                borders: { top:{style:BorderStyle.SINGLE,size:1}, bottom:{style:BorderStyle.SINGLE,size:1}, left:{style:BorderStyle.SINGLE,size:1}, right:{style:BorderStyle.SINGLE,size:1} },
+              })
+            ),
+          })
+        );
+        children.push(new Table({ rows: docRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+        children.push(new Paragraph({ text: '' }));
+        continue;
+      }
+
+      // Bullet
+      if (/^[-*+]\s/.test(line)) {
+        children.push(new Paragraph({ text: line.replace(/^[-*+]\s/,'').replace(/\*\*/g,''), bullet: { level: 0 } }));
+        i++; continue;
+      }
+
+      // Numbered list
+      if (/^\d+\.\s/.test(line)) {
+        children.push(new Paragraph({ text: line.replace(/^\d+\.\s/,'').replace(/\*\*/g,''), numbering: { reference: 'default-numbering', level: 0 } }));
+        i++; continue;
+      }
+
+      // Blank line
+      if (line.trim() === '') { children.push(new Paragraph({ text: '' })); i++; continue; }
+
+      // Normal paragraph — parse inline bold
+      const runs = [];
+      const boldRe = /\*\*(.+?)\*\*/g;
+      let last = 0, m;
+      while ((m = boldRe.exec(line)) !== null) {
+        if (m.index > last) runs.push(new TextRun({ text: line.slice(last, m.index) }));
+        runs.push(new TextRun({ text: m[1], bold: true }));
+        last = m.index + m[0].length;
+      }
+      if (last < line.length) runs.push(new TextRun({ text: line.slice(last) }));
+      children.push(new Paragraph({ children: runs.length ? runs : [new TextRun({ text: line })] }));
+      i++;
+    }
+
+    const doc  = new Document({ sections: [{ children }] });
+    const blob = await Packer.toBlob(doc);
+    triggerDownload(blob, `sonny-${datestamp()}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    showToast('✅ Word document downloaded');
+  } catch(e) {
+    console.error(e);
+    showToast('⚠️ Word generation failed: ' + e.message);
+  }
+}
+
+/* ── EXCEL (.xlsx) ── */
+function generateExcel(text) {
+  try {
+    if (!window.XLSX) { showToast('⚠️ Excel library not loaded yet, try again'); return; }
+    showToast('⏳ Generating Excel file…');
+
+    const wb  = window.XLSX.utils.book_new();
+    const lines = text.split('\n');
+
+    // Extract all markdown tables from the response
+    let sheetIndex = 1;
+    let i = 0;
+    let foundTable = false;
+
+    while (i < lines.length) {
+      if (lines[i].trim().startsWith('|') && lines[i+1] && /^\|[-| :]+\|$/.test(lines[i+1].trim())) {
+        const tableLines = [];
+        while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i]); i++; }
+
+        const parseRow = l => l.replace(/^\||\|$/g,'').split('|').map(c => c.trim().replace(/\*\*/g,''));
+        const headers  = parseRow(tableLines[0]);
+        const dataRows = tableLines.slice(2).map(l => parseRow(l));
+
+        const wsData = [headers, ...dataRows];
+        const ws     = window.XLSX.utils.aoa_to_sheet(wsData);
+
+        // Style header row bold (basic)
+        const range = window.XLSX.utils.decode_range(ws['!ref']);
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const addr = window.XLSX.utils.encode_cell({ r: 0, c });
+          if (ws[addr]) ws[addr].s = { font: { bold: true } };
+        }
+
+        // Auto column widths
+        ws['!cols'] = headers.map((h, ci) => ({
+          wch: Math.max(h.length, ...dataRows.map(r => (r[ci]||'').length), 10)
+        }));
+
+        window.XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetIndex++}`);
+        foundTable = true;
+      } else {
+        i++;
+      }
+    }
+
+    if (!foundTable) {
+      // No table found — export the raw text as a single-column sheet
+      const rows = text.split('\n').filter(l => l.trim()).map(l => [l.replace(/[#*`_~]/g,'').trim()]);
+      const ws   = window.XLSX.utils.aoa_to_sheet([['Content'], ...rows]);
+      window.XLSX.utils.book_append_sheet(wb, ws, 'Content');
+    }
+
+    const buf  = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    triggerDownload(blob, `sonny-${datestamp()}.xlsx`, blob.type);
+    showToast('✅ Excel file downloaded');
+  } catch(e) {
+    console.error(e);
+    showToast('⚠️ Excel generation failed: ' + e.message);
+  }
+}
+
+/* ── PDF ── */
+function generatePDF(text) {
+  try {
+    if (!window.jspdf) { showToast('⚠️ PDF library not loaded yet, try again'); return; }
+    showToast('⏳ Generating PDF…');
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW  = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const maxW   = pageW - margin * 2;
+    let   y      = margin;
+
+    const checkPage = (needed = 8) => {
+      if (y + needed > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage(); y = margin;
+      }
+    };
+
+    const lines = text.split('\n');
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // Heading
+      const hMatch = line.match(/^(#{1,3})\s+(.+)/);
+      if (hMatch) {
+        checkPage(12);
+        const sizes = { 1: 16, 2: 13, 3: 11 };
+        doc.setFontSize(sizes[hMatch[1].length] || 11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(hMatch[2], margin, y);
+        y += sizes[hMatch[1].length] === 16 ? 8 : 6;
+        i++; continue;
+      }
+
+      // Table → simple grid
+      if (line.trim().startsWith('|') && lines[i+1] && /^\|[-| :]+\|$/.test(lines[i+1].trim())) {
+        const tableLines = [];
+        while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i]); i++; }
+        const parseRow = l => l.replace(/^\||\|$/g,'').split('|').map(c => c.trim().replace(/\*\*/g,''));
+        const rows     = [parseRow(tableLines[0]), ...tableLines.slice(2).map(l => parseRow(l))];
+        const cols     = rows[0].length;
+        const colW     = maxW / cols;
+        const rowH     = 7;
+
+        rows.forEach((row, ri) => {
+          checkPage(rowH + 2);
+          row.forEach((cell, ci) => {
+            const x = margin + ci * colW;
+            doc.setFillColor(ri === 0 ? 220 : (ri % 2 === 0 ? 250 : 255), ri === 0 ? 210 : (ri % 2 === 0 ? 246 : 255), ri === 0 ? 190 : 240);
+            doc.rect(x, y - 5, colW, rowH, 'FD');
+            doc.setFontSize(8);
+            doc.setFont('helvetica', ri === 0 ? 'bold' : 'normal');
+            doc.text(String(cell).slice(0, 28), x + 2, y);
+          });
+          y += rowH;
+        });
+        y += 4; continue;
+      }
+
+      // Bullet
+      if (/^[-*+]\s/.test(line)) {
+        checkPage(7);
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+        const content = '• ' + line.replace(/^[-*+]\s/,'').replace(/\*\*/g,'');
+        const wrapped = doc.splitTextToSize(content, maxW - 5);
+        doc.text(wrapped, margin + 3, y);
+        y += wrapped.length * 5 + 1;
+        i++; continue;
+      }
+
+      // Blank
+      if (line.trim() === '') { y += 3; i++; continue; }
+
+      // Normal text
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+      const clean   = line.replace(/\*\*(.+?)\*\*/g, '$1').replace(/[#*`_~]/g,'');
+      const wrapped = doc.splitTextToSize(clean, maxW);
+      checkPage(wrapped.length * 5 + 2);
+      doc.text(wrapped, margin, y);
+      y += wrapped.length * 5 + 2;
+      i++;
+    }
+
+    // Footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      doc.setTextColor(160);
+      doc.text(`Generated by Sonny · Page ${p} of ${pageCount}`, margin, doc.internal.pageSize.getHeight() - 10);
+      doc.setTextColor(0);
+    }
+
+    doc.save(`sonny-${datestamp()}.pdf`);
+    showToast('✅ PDF downloaded');
+  } catch(e) {
+    console.error(e);
+    showToast('⚠️ PDF generation failed: ' + e.message);
+  }
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+const datestamp = () => new Date().toISOString().slice(0,10);
 
 /* ═══════════════════════════════════════════
    EXPORT / IMPORT BACKUP
@@ -2169,6 +2811,10 @@ const formatBytes = n => n>1e6?`${(n/1e6).toFixed(1)}MB`:n>1e3?`${(n/1e3).toFixe
    INIT
 ═══════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
+  // Apply stored app name/icon immediately on load
+  const identity = loadIdentity();
+  applyAppIdentity(identity.name, identity.icon);
+
   showView('welcome');
   renderChatList();
   updateModelPill();
