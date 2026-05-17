@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Sonny">
@@ -52,7 +52,8 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
    LAYOUT SHELL
 ══════════════════════════════════════════ */
 #app {
-  height: 100vh; width: 100%;
+  height: 100vh; height: 100dvh; /* dvh accounts for browser chrome on iPad/iPhone */
+  width: 100%;
   display: flex; overflow: hidden;
   position: relative;
 }
@@ -66,7 +67,7 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
   flex-shrink: 0;
   transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
   z-index: 20;
-  padding-top: calc(var(--safe-top) + 0px);
+  padding-top: max(var(--safe-top), 44px);
 }
 
 /* Mobile: sidebar slides over */
@@ -76,7 +77,7 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
     width: min(var(--sidebar-w), 85vw);
     transform: translateX(-100%);
     box-shadow: var(--shadow-lg);
-    padding-top: var(--safe-top);
+    padding-top: max(var(--safe-top), 44px);
   }
   #sidebar.open { transform: translateX(0); }
   #sidebar-overlay {
@@ -188,8 +189,12 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 
 /* ── TOP BAR ── */
 #top-bar {
-  height: calc(var(--safe-top) + 56px);
-  padding-top: var(--safe-top);
+  /* Use max() so we always clear the iOS status bar:
+     - As a home screen PWA: env(safe-area-inset-top) is ~44-54px (iPhone notch / Dynamic Island / iPad)
+     - In Safari browser: safe-area-inset-top may be 0, so we floor at 44px
+     - On desktop: floors to 44px giving a clean toolbar height */
+  height: calc(max(var(--safe-top), 44px) + 52px);
+  padding-top: max(var(--safe-top), 44px);
   display: flex; align-items: center; gap: 10px;
   padding-left: 14px; padding-right: 14px;
   background: var(--cream); border-bottom: 1px solid rgba(224,204,176,0.6);
@@ -459,13 +464,15 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 
 /* ── INPUT BAR ── */
 /* Outer wrapper handles full-bleed background and safe-area bottom padding.
-   On iPhone it respects the home indicator; on iPad safe-bot is 0 so we
-   enforce a minimum 12px gap so the bar is never flush against the edge. */
+   max() ensures breathing room on all devices:
+   - iPhone with home indicator: safe-bot ≈ 34px (wins)
+   - iPad (no home indicator): safe-bot = 0, floor to 16px
+   - Desktop: floors to 16px */
 #input-bar-outer {
   background: var(--cream);
   border-top: 1px solid rgba(224,204,176,0.7);
   flex-shrink: 0;
-  padding-bottom: max(var(--safe-bot), 12px);
+  padding-bottom: max(var(--safe-bot), 16px);
 }
 #input-bar {
   display: flex; align-items: flex-end; gap: 8px;
@@ -975,7 +982,7 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
         <div class="settings-group">
           <div class="s-row">
             <div class="s-row-left"><div class="s-row-label">Web search</div><div class="s-row-sub" id="search-setting-sub">Anthropic only — Claude searches when needed</div></div>
-            <button class="toggle-track off" id="toggle-websearch" onclick="togglePref('webSearch')"><div class="toggle-thumb"></div></button>
+            <button class="toggle-track off" id="toggle-websearch" onclick="togglePref('websearch')"><div class="toggle-thumb"></div></button>
           </div>
         </div>
 
