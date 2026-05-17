@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Sonny">
+<meta name="theme-color" content="#faf6f0">
 <title>Sonny</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
@@ -166,6 +167,33 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
   text-transform: uppercase; color: var(--latte);
   padding: 10px 12px 4px;
 }
+
+/* ── CHAT SEARCH ── */
+.chat-search-wrap {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 12px 8px; padding: 8px 12px;
+  background: var(--white); border-radius: var(--radius-sm);
+  border: 1.5px solid transparent;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+.chat-search-wrap:focus-within {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(193,127,74,0.1);
+}
+.chat-search-wrap svg { color: var(--latte); flex-shrink: 0; }
+#chat-search-input {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-size: 13px; font-family: 'DM Sans', sans-serif;
+  color: var(--espresso); min-width: 0;
+}
+#chat-search-input::placeholder { color: var(--latte); }
+#chat-search-clear {
+  color: var(--latte); padding: 2px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s;
+}
+#chat-search-clear:hover { color: var(--espresso); }
 
 /* Sidebar bottom settings */
 .sidebar-footer {
@@ -763,6 +791,16 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
         <div class="sidebar-new-icon">+</div>
         New Chat
       </button>
+      <!-- Chat search -->
+      <div class="chat-search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="chat-search-input" placeholder="Search chats…"
+          oninput="filterChats(this.value)"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+        <button id="chat-search-clear" onclick="clearChatSearch()" style="display:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
       <div class="sidebar-list" id="chats-list"></div>
     </div>
 
@@ -999,9 +1037,10 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
           <div class="s-row" style="flex-direction:column;align-items:stretch;gap:8px;padding-bottom:14px">
             <div class="s-row-label">System prompt</div>
             <div class="s-row-sub" style="margin-top:-4px">Used for chats not in a project</div>
-            <textarea id="system-prompt-input" rows="4" oninput="savePrefs()"
+            <textarea id="system-prompt-input" rows="4" oninput="savePrefs()" onblur="savePrefs()"
               placeholder="e.g. You are Sonny, a warm and helpful personal AI assistant…"
-              style="border:1.5px solid var(--wheat);border-radius:12px;padding:10px 14px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--espresso);background:var(--sand);outline:none;resize:none;line-height:1.5"></textarea>
+              style="border:1.5px solid var(--wheat);border-radius:12px;padding:10px 14px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--espresso);background:var(--sand);outline:none;resize:none;line-height:1.5;transition:border-color 0.2s"
+              onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--wheat)';savePrefs()"></textarea>
           </div>
         </div>
 
@@ -1054,10 +1093,18 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Document generation libraries (loaded from CDN) -->
+<!-- Document generation libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// Normalise library globals — different CDN/version combos expose under different names
+window._docxLib  = window.docx  || null;
+window._xlsxLib  = window.XLSX  || null;
+window._jspdfLib = (window.jspdf && window.jspdf.jsPDF)
+                    ? window.jspdf
+                    : (window.jsPDF ? { jsPDF: window.jsPDF } : null);
+</script>
 <script>
 'use strict';
 /* ═══════════════════════════════════════════
@@ -1193,18 +1240,38 @@ function renderChatList() {
   const chats  = loadChats();
   const list   = document.getElementById('chats-list');
   list.innerHTML = '';
-  if (!chats.length) {
-    list.innerHTML = '<div style="padding:16px 12px;font-size:13px;color:var(--latte)">No chats yet — start one!</div>';
+
+  // Filter by search query if active
+  const filtered = chatSearchQuery
+    ? chats.filter(c =>
+        c.title?.toLowerCase().includes(chatSearchQuery) ||
+        c.preview?.toLowerCase().includes(chatSearchQuery) ||
+        c.messages?.some(m => m.content?.toLowerCase().includes(chatSearchQuery))
+      )
+    : chats;
+
+  if (!filtered.length) {
+    list.innerHTML = chatSearchQuery
+      ? `<div style="padding:16px 12px;font-size:13px;color:var(--latte)">No chats match "${escHtml(chatSearchQuery)}"</div>`
+      : '<div style="padding:16px 12px;font-size:13px;color:var(--latte)">No chats yet — start one!</div>';
     return;
   }
-  const sorted = [...chats].sort((a,b) => b.updatedAt - a.updatedAt);
+
+  const sorted = [...filtered].sort((a,b) => b.updatedAt - a.updatedAt);
   sorted.forEach(chat => {
     const el = document.createElement('div');
     el.className = 'sidebar-item animate-in' + (chat.id === activeChatId ? ' active' : '');
+
+    // Highlight matching text in title if searching
+    const titleHtml = chatSearchQuery
+      ? escHtml(chat.title).replace(new RegExp(`(${escHtml(chatSearchQuery)})`, 'gi'),
+          '<mark style="background:rgba(193,127,74,0.25);border-radius:3px;padding:0 1px">$1</mark>')
+      : escHtml(chat.title);
+
     el.innerHTML = `
       <div class="sidebar-item-icon">${chat.projectId ? '📎' : '💬'}</div>
       <div class="sidebar-item-body">
-        <div class="sidebar-item-title">${escHtml(chat.title)}</div>
+        <div class="sidebar-item-title">${titleHtml}</div>
         <div class="sidebar-item-sub">${relTime(chat.updatedAt)}</div>
       </div>
       <button class="sidebar-item-del" onclick="deleteChat('${chat.id}',event)" title="Delete">
@@ -1837,6 +1904,15 @@ async function sendMessage() {
 /* ═══════════════════════════════════════════
    WEB SEARCH TOGGLE
 ═══════════════════════════════════════════ */
+function syncSearchBtn() {
+  const prefs     = loadPrefs();
+  const searchOn  = webSearchOn || !!prefs.webSearch;
+  const btn       = document.getElementById('search-btn');
+  if (!btn) return;
+  btn.classList.toggle('search-on', searchOn);
+  btn.title = searchOn ? 'Web search ON — click to disable' : 'Toggle web search';
+}
+
 function toggleWebSearch() {
   const prefs    = loadPrefs();
   const provider = prefs.provider || 'anthropic';
@@ -1847,10 +1923,8 @@ function toggleWebSearch() {
   }
 
   webSearchOn = !webSearchOn;
-  const btn = document.getElementById('search-btn');
-  btn.classList.toggle('search-on', webSearchOn);
-  btn.title = webSearchOn ? 'Web search ON — click to disable' : 'Toggle web search';
-  showToast(webSearchOn ? '🔍 Web search enabled' : 'Web search off');
+  syncSearchBtn();
+  showToast(webSearchOn ? '🔍 Web search ON for this message' : 'Web search off');
 }
 
 /* ═══════════════════════════════════════════
@@ -1953,7 +2027,11 @@ async function callAnthropic(messages, apiKey, prefs, project) {
   const model        = prefs.model || 'claude-sonnet-4-6';
   const systemBlocks = buildSystemBlocks(prefs, project);
   const apiMsgs      = buildApiMessages(messages);
-  const useSearch    = webSearchOn && (prefs.provider || 'anthropic') === 'anthropic';
+
+  // Web search is active if EITHER the per-message toggle is on
+  // OR the persistent Settings preference is enabled
+  const useSearch = (webSearchOn || prefs.webSearch) &&
+                    (prefs.provider || 'anthropic') === 'anthropic';
 
   // Show search indicator if web search is active
   if (useSearch) {
@@ -2276,18 +2354,23 @@ function onProviderChange(doSave = true) {
 }
 
 function savePrefs() {
+  // Guard: only save fields that exist in the DOM at this moment
+  const g = id => document.getElementById(id);
+  if (!g('provider-select')) return; // Settings view not mounted yet
+
   const prefs = {
-    provider:     document.getElementById('provider-select').value,
-    model:        document.getElementById('model-select').value,
-    customUrl:    document.getElementById('custom-url-input').value,
-    timestamps:   document.getElementById('toggle-timestamps').classList.contains('on'),
-    tts:          document.getElementById('toggle-tts').classList.contains('on'),
-    voiceSpeed:   document.getElementById('voice-speed').value,
-    systemPrompt: document.getElementById('system-prompt-input').value,
-    webSearch:    document.getElementById('toggle-websearch').classList.contains('on'),
+    provider:     g('provider-select')?.value      || loadPrefs().provider     || 'anthropic',
+    model:        g('model-select')?.value         || loadPrefs().model        || 'claude-sonnet-4-6',
+    customUrl:    g('custom-url-input')?.value     || loadPrefs().customUrl    || '',
+    timestamps:   g('toggle-timestamps')?.classList.contains('on') ?? loadPrefs().timestamps ?? false,
+    tts:          g('toggle-tts')?.classList.contains('on')        ?? loadPrefs().tts        ?? false,
+    voiceSpeed:   g('voice-speed')?.value          || loadPrefs().voiceSpeed   || '1',
+    systemPrompt: g('system-prompt-input')?.value  ?? loadPrefs().systemPrompt ?? '',
+    webSearch:    g('toggle-websearch')?.classList.contains('on')  ?? loadPrefs().webSearch  ?? false,
   };
   storePrefs(prefs);
   updateModelPill();
+  syncSearchBtn();
 }
 
 function updateModelPill() {
@@ -2416,11 +2499,15 @@ function maybeAppendDocButtons(msgGroup, responseText) {
 /* ── WORD (.docx) ── */
 async function generateWord(text) {
   try {
-    if (!window.docx) { showToast('⚠️ Word library not loaded yet, try again'); return; }
+    const lib = window._docxLib || window.docx;
+    if (!lib || !lib.Document) {
+      showToast('⚠️ Word library not ready — please wait a moment and try again');
+      return;
+    }
     showToast('⏳ Generating Word document…');
 
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell,
-            BorderStyle, AlignmentType, WidthType } = window.docx;
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel,
+            Table, TableRow, TableCell, BorderStyle, WidthType } = lib;
 
     const children = [];
     const lines    = text.split('\n');
@@ -2432,8 +2519,11 @@ async function generateWord(text) {
       // Heading
       const hMatch = line.match(/^(#{1,3})\s+(.+)/);
       if (hMatch) {
-        const lvl = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3][hMatch[1].length - 1];
-        children.push(new Paragraph({ text: hMatch[2], heading: lvl }));
+        const lvls = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3];
+        children.push(new Paragraph({
+          text: hMatch[2].replace(/\*\*/g,''),
+          heading: lvls[hMatch[1].length - 1] || HeadingLevel.HEADING_3
+        }));
         i++; continue;
       }
 
@@ -2442,74 +2532,91 @@ async function generateWord(text) {
         const tableLines = [];
         while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i]); i++; }
         const parseRow = l => l.replace(/^\||\|$/g,'').split('|').map(c => c.trim());
-        const rows = [tableLines[0], ...tableLines.slice(2)].map(l => parseRow(l));
-
-        const docRows = rows.map((row, ri) =>
-          new TableRow({
-            children: row.map(cell =>
-              new TableCell({
-                children: [new Paragraph({
-                  children: [new TextRun({ text: cell.replace(/\*\*/g,''), bold: ri === 0 })],
-                })],
-                borders: { top:{style:BorderStyle.SINGLE,size:1}, bottom:{style:BorderStyle.SINGLE,size:1}, left:{style:BorderStyle.SINGLE,size:1}, right:{style:BorderStyle.SINGLE,size:1} },
-              })
-            ),
-          })
-        );
-        children.push(new Table({ rows: docRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+        const allRows  = [tableLines[0], ...tableLines.slice(2)].map(l => parseRow(l));
+        const docRows  = allRows.map((row, ri) => new TableRow({
+          children: row.map(cell => new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({ text: cell.replace(/\*\*/g,''), bold: ri === 0, size: 20 })]
+            })],
+            borders: {
+              top:    { style: BorderStyle.SINGLE, size: 1, color: 'D4BFA0' },
+              bottom: { style: BorderStyle.SINGLE, size: 1, color: 'D4BFA0' },
+              left:   { style: BorderStyle.SINGLE, size: 1, color: 'D4BFA0' },
+              right:  { style: BorderStyle.SINGLE, size: 1, color: 'D4BFA0' },
+            },
+          }))
+        }));
+        children.push(new Table({
+          rows: docRows,
+          width: { size: 9360, type: WidthType.DXA }
+        }));
         children.push(new Paragraph({ text: '' }));
         continue;
       }
 
       // Bullet
       if (/^[-*+]\s/.test(line)) {
-        children.push(new Paragraph({ text: line.replace(/^[-*+]\s/,'').replace(/\*\*/g,''), bullet: { level: 0 } }));
+        children.push(new Paragraph({
+          text: line.replace(/^[-*+]\s/,'').replace(/\*\*/g,''),
+          bullet: { level: 0 }
+        }));
         i++; continue;
       }
 
-      // Numbered list
+      // Numbered
       if (/^\d+\.\s/.test(line)) {
-        children.push(new Paragraph({ text: line.replace(/^\d+\.\s/,'').replace(/\*\*/g,''), numbering: { reference: 'default-numbering', level: 0 } }));
+        children.push(new Paragraph({
+          text: line.replace(/^\d+\.\s/,'').replace(/\*\*/g,''),
+          // docx bullets with numbering reference requires pre-defined numbering;
+          // fall back to indented paragraph with number prefix for simplicity
+          indent: { left: 360 },
+          children: [new TextRun({ text: line.replace(/\*\*/g,''), size: 22 })]
+        }));
         i++; continue;
       }
 
       // Blank line
-      if (line.trim() === '') { children.push(new Paragraph({ text: '' })); i++; continue; }
+      if (line.trim() === '') {
+        children.push(new Paragraph({ text: '' }));
+        i++; continue;
+      }
 
       // Normal paragraph — parse inline bold
-      const runs = [];
+      const runs   = [];
       const boldRe = /\*\*(.+?)\*\*/g;
       let last = 0, m;
       while ((m = boldRe.exec(line)) !== null) {
-        if (m.index > last) runs.push(new TextRun({ text: line.slice(last, m.index) }));
-        runs.push(new TextRun({ text: m[1], bold: true }));
+        if (m.index > last) runs.push(new TextRun({ text: line.slice(last, m.index), size: 22 }));
+        runs.push(new TextRun({ text: m[1], bold: true, size: 22 }));
         last = m.index + m[0].length;
       }
-      if (last < line.length) runs.push(new TextRun({ text: line.slice(last) }));
-      children.push(new Paragraph({ children: runs.length ? runs : [new TextRun({ text: line })] }));
+      if (last < line.length) runs.push(new TextRun({ text: line.slice(last), size: 22 }));
+      children.push(new Paragraph({ children: runs.length ? runs : [new TextRun({ text: line, size: 22 })] }));
       i++;
     }
 
     const doc  = new Document({ sections: [{ children }] });
     const blob = await Packer.toBlob(doc);
-    triggerDownload(blob, `sonny-${datestamp()}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    triggerDownload(blob, `sonny-${datestamp()}.docx`);
     showToast('✅ Word document downloaded');
   } catch(e) {
-    console.error(e);
-    showToast('⚠️ Word generation failed: ' + e.message);
+    console.error('[Sonny] Word generation error:', e);
+    showToast('⚠️ Word generation failed: ' + (e.message || e));
   }
 }
 
 /* ── EXCEL (.xlsx) ── */
 function generateExcel(text) {
   try {
-    if (!window.XLSX) { showToast('⚠️ Excel library not loaded yet, try again'); return; }
+    const lib = window._xlsxLib || window.XLSX;
+    if (!lib || !lib.utils) {
+      showToast('⚠️ Excel library not ready — please wait and try again');
+      return;
+    }
     showToast('⏳ Generating Excel file…');
 
-    const wb  = window.XLSX.utils.book_new();
+    const wb    = lib.utils.book_new();
     const lines = text.split('\n');
-
-    // Extract all markdown tables from the response
     let sheetIndex = 1;
     let i = 0;
     let foundTable = false;
@@ -2524,21 +2631,12 @@ function generateExcel(text) {
         const dataRows = tableLines.slice(2).map(l => parseRow(l));
 
         const wsData = [headers, ...dataRows];
-        const ws     = window.XLSX.utils.aoa_to_sheet(wsData);
-
-        // Style header row bold (basic)
-        const range = window.XLSX.utils.decode_range(ws['!ref']);
-        for (let c = range.s.c; c <= range.e.c; c++) {
-          const addr = window.XLSX.utils.encode_cell({ r: 0, c });
-          if (ws[addr]) ws[addr].s = { font: { bold: true } };
-        }
-
-        // Auto column widths
-        ws['!cols'] = headers.map((h, ci) => ({
+        const ws     = lib.utils.aoa_to_sheet(wsData);
+        ws['!cols']  = headers.map((h, ci) => ({
           wch: Math.max(h.length, ...dataRows.map(r => (r[ci]||'').length), 10)
         }));
 
-        window.XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetIndex++}`);
+        lib.utils.book_append_sheet(wb, ws, `Table ${sheetIndex++}`);
         foundTable = true;
       } else {
         i++;
@@ -2546,38 +2644,40 @@ function generateExcel(text) {
     }
 
     if (!foundTable) {
-      // No table found — export the raw text as a single-column sheet
-      const rows = text.split('\n').filter(l => l.trim()).map(l => [l.replace(/[#*`_~]/g,'').trim()]);
-      const ws   = window.XLSX.utils.aoa_to_sheet([['Content'], ...rows]);
-      window.XLSX.utils.book_append_sheet(wb, ws, 'Content');
+      const rows = text.split('\n').filter(l => l.trim()).map(l => [l.replace(/[#*`_~|]/g,'').trim()]);
+      const ws   = lib.utils.aoa_to_sheet([['Content'], ...rows]);
+      lib.utils.book_append_sheet(wb, ws, 'Content');
     }
 
-    const buf  = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const buf  = lib.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    triggerDownload(blob, `sonny-${datestamp()}.xlsx`, blob.type);
+    triggerDownload(blob, `sonny-${datestamp()}.xlsx`);
     showToast('✅ Excel file downloaded');
   } catch(e) {
-    console.error(e);
-    showToast('⚠️ Excel generation failed: ' + e.message);
+    console.error('[Sonny] Excel generation error:', e);
+    showToast('⚠️ Excel generation failed: ' + (e.message || e));
   }
 }
 
 /* ── PDF ── */
 function generatePDF(text) {
   try {
-    if (!window.jspdf) { showToast('⚠️ PDF library not loaded yet, try again'); return; }
+    const lib = window._jspdfLib || window.jspdf;
+    if (!lib || !lib.jsPDF) {
+      showToast('⚠️ PDF library not ready — please wait and try again');
+      return;
+    }
     showToast('⏳ Generating PDF…');
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const doc    = new lib.jsPDF({ unit: 'mm', format: 'a4' });
     const pageW  = doc.internal.pageSize.getWidth();
     const margin = 20;
     const maxW   = pageW - margin * 2;
-    let   y      = margin;
+    let   y      = margin + 5;
 
     const checkPage = (needed = 8) => {
       if (y + needed > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage(); y = margin;
+        doc.addPage(); y = margin + 5;
       }
     };
 
@@ -2587,19 +2687,17 @@ function generatePDF(text) {
     while (i < lines.length) {
       const line = lines[i];
 
-      // Heading
       const hMatch = line.match(/^(#{1,3})\s+(.+)/);
       if (hMatch) {
         checkPage(12);
         const sizes = { 1: 16, 2: 13, 3: 11 };
-        doc.setFontSize(sizes[hMatch[1].length] || 11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(hMatch[2], margin, y);
-        y += sizes[hMatch[1].length] === 16 ? 8 : 6;
+        const sz    = sizes[hMatch[1].length] || 11;
+        doc.setFontSize(sz); doc.setFont('helvetica', 'bold');
+        doc.text(hMatch[2].replace(/\*\*/g,''), margin, y);
+        y += sz === 16 ? 9 : 7;
         i++; continue;
       }
 
-      // Table → simple grid
       if (line.trim().startsWith('|') && lines[i+1] && /^\|[-| :]+\|$/.test(lines[i+1].trim())) {
         const tableLines = [];
         while (i < lines.length && lines[i].trim().startsWith('|')) { tableLines.push(lines[i]); i++; }
@@ -2613,58 +2711,62 @@ function generatePDF(text) {
           checkPage(rowH + 2);
           row.forEach((cell, ci) => {
             const x = margin + ci * colW;
-            doc.setFillColor(ri === 0 ? 220 : (ri % 2 === 0 ? 250 : 255), ri === 0 ? 210 : (ri % 2 === 0 ? 246 : 255), ri === 0 ? 190 : 240);
+            if (ri === 0) { doc.setFillColor(220, 210, 190); }
+            else if (ri % 2 === 0) { doc.setFillColor(250, 246, 240); }
+            else { doc.setFillColor(255, 255, 255); }
             doc.rect(x, y - 5, colW, rowH, 'FD');
-            doc.setFontSize(8);
-            doc.setFont('helvetica', ri === 0 ? 'bold' : 'normal');
-            doc.text(String(cell).slice(0, 28), x + 2, y);
+            doc.setFontSize(8); doc.setFont('helvetica', ri === 0 ? 'bold' : 'normal');
+            doc.setTextColor(58, 50, 40);
+            doc.text(String(cell).slice(0, Math.floor(colW / 2.2)), x + 2, y);
           });
           y += rowH;
         });
         y += 4; continue;
       }
 
-      // Bullet
       if (/^[-*+]\s/.test(line)) {
         checkPage(7);
-        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-        const content = '• ' + line.replace(/^[-*+]\s/,'').replace(/\*\*/g,'');
-        const wrapped = doc.splitTextToSize(content, maxW - 5);
-        doc.text(wrapped, margin + 3, y);
-        y += wrapped.length * 5 + 1;
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(58, 50, 40);
+        const content = '\u2022 ' + line.replace(/^[-*+]\s/,'').replace(/\*\*/g,'');
+        const wrapped = doc.splitTextToSize(content, maxW - 6);
+        doc.text(wrapped, margin + 4, y);
+        y += wrapped.length * 5.5 + 1;
         i++; continue;
       }
 
-      // Blank
       if (line.trim() === '') { y += 3; i++; continue; }
 
-      // Normal text
-      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-      const clean   = line.replace(/\*\*(.+?)\*\*/g, '$1').replace(/[#*`_~]/g,'');
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(58, 50, 40);
+      const clean   = line.replace(/\*\*(.+?)\*\*/g,'$1').replace(/[#*`_~]/g,'');
       const wrapped = doc.splitTextToSize(clean, maxW);
-      checkPage(wrapped.length * 5 + 2);
+      checkPage(wrapped.length * 5.5 + 2);
       doc.text(wrapped, margin, y);
-      y += wrapped.length * 5 + 2;
+      y += wrapped.length * 5.5 + 2;
       i++;
     }
 
-    // Footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) {
       doc.setPage(p);
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-      doc.setTextColor(160);
-      doc.text(`Generated by Sonny · Page ${p} of ${pageCount}`, margin, doc.internal.pageSize.getHeight() - 10);
-      doc.setTextColor(0);
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(179, 162, 142);
+      doc.text(
+        `Generated by Sonny  ·  Page ${p} of ${pageCount}`,
+        margin,
+        doc.internal.pageSize.getHeight() - 10
+      );
     }
 
     doc.save(`sonny-${datestamp()}.pdf`);
     showToast('✅ PDF downloaded');
   } catch(e) {
-    console.error(e);
-    showToast('⚠️ PDF generation failed: ' + e.message);
+    console.error('[Sonny] PDF generation error:', e);
+    showToast('⚠️ PDF generation failed: ' + (e.message || e));
   }
 }
+
+    const children = [];
+    const lines    = text.split('\n');
+    let i = 0;
 
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -2801,6 +2903,28 @@ function scrollToBottom() {
 }
 
 /* ═══════════════════════════════════════════
+   CHAT SEARCH
+═══════════════════════════════════════════ */
+let chatSearchQuery = '';
+
+function filterChats(query) {
+  chatSearchQuery = (query || '').trim().toLowerCase();
+  const clearBtn  = document.getElementById('chat-search-clear');
+  if (clearBtn) clearBtn.style.display = chatSearchQuery ? 'flex' : 'none';
+  renderChatList();
+}
+
+function clearChatSearch() {
+  chatSearchQuery = '';
+  const input    = document.getElementById('chat-search-input');
+  const clearBtn = document.getElementById('chat-search-clear');
+  if (input)    input.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  renderChatList();
+  input?.focus();
+}
+
+/* ═══════════════════════════════════════════
    UTILITIES
 ═══════════════════════════════════════════ */
 const escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -2826,9 +2950,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderChatList();
   updateModelPill();
 
-  // Mobile: show close button inside sidebar when open
-  const mq = window.matchMedia('(max-width:768px)');
-  document.getElementById('sidebar-close-btn').style.display = mq.matches ? 'none' : 'none';
+  // Sync web search button state from persisted prefs
+  syncSearchBtn();
 
   document.getElementById('msg-input').addEventListener('input', function() {
     document.getElementById('send-btn').disabled = !(this.value.trim() || pendingImage);
