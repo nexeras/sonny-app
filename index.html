@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Sonny">
 <meta name="theme-color" content="#faf6f0">
+<!-- Home screen icon (sonny-icon.png sits in the same folder as index.html) -->
+<link rel="apple-touch-icon" sizes="180x180" href="sonny-icon.png">
+<link rel="icon" type="image/png" sizes="180x180" href="sonny-icon.png">
 <title>Sonny</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
@@ -1093,20 +1096,43 @@ input, textarea, select { font-family: 'DM Sans', sans-serif; }
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Document generation libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Document generation libraries — loaded lazily when first needed -->
 <script>
-// Normalise library globals — different CDN/version combos expose under different names
-window._docxLib  = window.docx  || null;
-window._xlsxLib  = window.XLSX  || null;
-window._jspdfLib = (window.jspdf && window.jspdf.jsPDF)
-                    ? window.jspdf
-                    : (window.jsPDF ? { jsPDF: window.jsPDF } : null);
+// Lazy-load a CDN script once, return a Promise
+function _loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.crossOrigin = 'anonymous';
+    s.onload  = resolve;
+    s.onerror = () => reject(new Error('Failed to load: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureDocxLib() {
+  if (window.docx && window.docx.Document) return window.docx;
+  await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js');
+  if (!window.docx) throw new Error('docx library failed to initialise');
+  return window.docx;
+}
+
+async function ensureXlsxLib() {
+  if (window.XLSX && window.XLSX.utils) return window.XLSX;
+  await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  if (!window.XLSX) throw new Error('XLSX library failed to initialise');
+  return window.XLSX;
+}
+
+async function ensureJsPDF() {
+  if (window.jspdf && window.jspdf.jsPDF) return window.jspdf;
+  await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const lib = window.jspdf || (window.jsPDF ? { jsPDF: window.jsPDF } : null);
+  if (!lib || !lib.jsPDF) throw new Error('jsPDF library failed to initialise');
+  return lib;
+}
 </script>
 <script>
-'use strict';
 /* ═══════════════════════════════════════════
    STORAGE
 ═══════════════════════════════════════════ */
@@ -1632,12 +1658,12 @@ function parseContent(text) {
         continue;
       }
 
-      // ── Unordered list
-      if (/^[-*+]\s/.test(line)) {
+      // ── Unordered list (- item or * item but NOT **bold** or *italic* lines)
+      if (/^[-+]\s|^\*\s/.test(line)) {
         const ul = el('ul', 'md-ul');
-        while (i < lines.length && /^[-*+]\s/.test(lines[i])) {
+        while (i < lines.length && /^[-+]\s|^\*\s/.test(lines[i])) {
           const li = el('li', 'md-li');
-          li.innerHTML = inlineMarkdown(lines[i].replace(/^[-*+]\s/, ''));
+          li.innerHTML = inlineMarkdown(lines[i].replace(/^[-+*]\s/, ''));
           ul.appendChild(li);
           i++;
         }
@@ -1663,7 +1689,7 @@ function parseContent(text) {
       while (
         i < lines.length &&
         lines[i].trim() !== '' &&
-        !/^(#{1,3}\s|[-*+]\s|\d+\.\s|> |[-*_]{3,})/.test(lines[i]) &&
+        !/^(#{1,3}\s|[-+]\s|\*\s|\d+\.\s|> |[-*_]{3,})/.test(lines[i]) &&
         !lines[i].trim().startsWith('|')
       ) {
         pLines.push(lines[i]);
@@ -1673,6 +1699,10 @@ function parseContent(text) {
         const p = el('p', 'md-p');
         p.innerHTML = inlineMarkdown(pLines.join('\n'));
         bubble.appendChild(p);
+      } else {
+        // Safety: if nothing matched and nothing was consumed, advance
+        // one line to prevent an infinite loop on unrecognised content
+        i++;
       }
     }
 
@@ -1982,7 +2012,13 @@ function buildSystemBlocks(prefs, project) {
   return blocks;
 }
 
-/* Build the messages array with cache_control on the conversation history. */
+/* Build the messages array with cache_control on the conversation history.
+   Strategy: mark the last assistant message as a cache breakpoint.
+   This tells Anthropic to cache everything up to and including that
+   message, so each new turn only bills the new user message as fresh
+   input tokens. The cache is valid for 5 minutes (extended to 1 hour
+   if hit repeatedly). Everything before the breakpoint is a cache read
+   at ~10% of normal input token cost. */
 function buildApiMessages(messages) {
   const apiMsgs = messages.map(m => {
     const role = m.role === 'assistant' ? 'assistant' : 'user';
@@ -1995,9 +2031,18 @@ function buildApiMessages(messages) {
     return { role, content: m.content };
   });
 
-  if (apiMsgs.length >= 2) {
-    const targetIdx = apiMsgs.length - 2;
-    const target    = apiMsgs[targetIdx];
+  // Find the last assistant message and mark it as the cache breakpoint.
+  // On the next turn, everything up to and including this message is a
+  // cache read. Only the new user message at the end is a fresh write.
+  // We use the last assistant message (not penultimate user) because
+  // Anthropic requires cache_control on a complete exchange boundary.
+  let lastAssistantIdx = -1;
+  for (let i = apiMsgs.length - 1; i >= 0; i--) {
+    if (apiMsgs[i].role === 'assistant') { lastAssistantIdx = i; break; }
+  }
+
+  if (lastAssistantIdx >= 0) {
+    const target = apiMsgs[lastAssistantIdx];
     if (typeof target.content === 'string') {
       target.content = [{ type: 'text', text: target.content, cache_control: { type: 'ephemeral' } }];
     } else if (Array.isArray(target.content)) {
@@ -2499,13 +2544,8 @@ function maybeAppendDocButtons(msgGroup, responseText) {
 /* ── WORD (.docx) ── */
 async function generateWord(text) {
   try {
-    const lib = window._docxLib || window.docx;
-    if (!lib || !lib.Document) {
-      showToast('⚠️ Word library not ready — please wait a moment and try again');
-      return;
-    }
     showToast('⏳ Generating Word document…');
-
+    const lib = await ensureDocxLib();
     const { Document, Packer, Paragraph, TextRun, HeadingLevel,
             Table, TableRow, TableCell, BorderStyle, WidthType } = lib;
 
@@ -2607,13 +2647,9 @@ async function generateWord(text) {
 
 /* ── EXCEL (.xlsx) ── */
 function generateExcel(text) {
-  try {
-    const lib = window._xlsxLib || window.XLSX;
-    if (!lib || !lib.utils) {
-      showToast('⚠️ Excel library not ready — please wait and try again');
-      return;
-    }
-    showToast('⏳ Generating Excel file…');
+  showToast('⏳ Generating Excel file…');
+  ensureXlsxLib().then(lib => {
+    try {
 
     const wb    = lib.utils.book_new();
     const lines = text.split('\n');
@@ -2653,22 +2689,21 @@ function generateExcel(text) {
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     triggerDownload(blob, `sonny-${datestamp()}.xlsx`);
     showToast('✅ Excel file downloaded');
-  } catch(e) {
-    console.error('[Sonny] Excel generation error:', e);
-    showToast('⚠️ Excel generation failed: ' + (e.message || e));
-  }
+    } catch(e) {
+      console.error('[Sonny] Excel generation error:', e);
+      showToast('⚠️ Excel generation failed: ' + (e.message || e));
+    }
+  }).catch(e => {
+    console.error('[Sonny] Excel library load error:', e);
+    showToast('⚠️ Could not load Excel library: ' + (e.message || e));
+  });
 }
 
 /* ── PDF ── */
 function generatePDF(text) {
-  try {
-    const lib = window._jspdfLib || window.jspdf;
-    if (!lib || !lib.jsPDF) {
-      showToast('⚠️ PDF library not ready — please wait and try again');
-      return;
-    }
-    showToast('⏳ Generating PDF…');
-
+  showToast('⏳ Generating PDF…');
+  ensureJsPDF().then(lib => {
+    try {
     const doc    = new lib.jsPDF({ unit: 'mm', format: 'a4' });
     const pageW  = doc.internal.pageSize.getWidth();
     const margin = 20;
@@ -2758,15 +2793,15 @@ function generatePDF(text) {
 
     doc.save(`sonny-${datestamp()}.pdf`);
     showToast('✅ PDF downloaded');
-  } catch(e) {
-    console.error('[Sonny] PDF generation error:', e);
-    showToast('⚠️ PDF generation failed: ' + (e.message || e));
-  }
+    } catch(e) {
+      console.error('[Sonny] PDF generation error:', e);
+      showToast('⚠️ PDF generation failed: ' + (e.message || e));
+    }
+  }).catch(e => {
+    console.error('[Sonny] PDF library load error:', e);
+    showToast('⚠️ Could not load PDF library: ' + (e.message || e));
+  });
 }
-
-    const children = [];
-    const lines    = text.split('\n');
-    let i = 0;
 
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
